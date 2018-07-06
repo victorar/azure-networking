@@ -3,10 +3,13 @@
     "contentVersion": "1.0.0.0",
     "parameters": {
       "dnsNameforLBIP": {
+        "value": "GEN-UNIQUE"
       },
       "adminUsername": {
+        "value": "GEN-UNIQUE"
       },
       "adminPassword": {
+        "value": "GEN-UNIQUE"
       }
     }
   }
