@@ -1,0 +1,440 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "adminUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "Admin username"
+      }
+    },
+    "adminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Admin password"
+      }
+    }    
+  },
+  "variables": {
+    "nvaVMNamePrefix": "NVA",
+    "vmNamePrefix": "vm",
+    "scriptFile": "https://raw.githubusercontent.com/victorar/azure-networking/master/loadBalancer/standard/internal-haPorts/installrras.ps1",
+    "scriptName": "installrras.ps1",
+    "storageAccountType": "Standard_LRS",
+    "storageAccountName": "[uniqueString(resourceGroup().id)]",    
+    "vnetName": "VNet",
+    "vnetAddressPrefix": "10.100.0.0/16",
+    "subnet1Name": "untrusted-subnet",
+    "subnet1Prefix": "10.100.2.0/24",
+    "subnet2Name": "trusted-subnet",
+    "subnet2Prefix": "10.100.0.0/24",
+    "nvasubnetName": "nva-subnet",
+    "nvasubnetPrefix": "10.100.1.0/24",
+    "subnet1Ref": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('subnet1Name'))]",
+    "subnet2Ref": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('subnet2Name'))]",
+    "nvasubnetRef": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('nvasubnetName'))]",
+    "routeTable1Name": "routeTable-untrustedSubnet",
+    "routeTable2Name": "routeTable-trustedSubnet",
+    "availabilitySetName": "nva-AvSet",
+    "loadBalancerName": "nva-lb",
+    "loadBalancerVIP": "10.100.1.4",    
+    "networkInterfaceName": "nic",
+    "publicIPName": "pip",
+    "publicIPAddressType": "Static",
+    "numberOfInstances": 2,    
+    "vmNICXName": "vmnic",
+    "vmNIC1Name": "vmnic0",
+    "vmNIC2Name": "vmnic1",
+    "lbID": "[resourceId('Microsoft.Network/loadBalancers', variables('loadBalancerName'))]"
+  },
+  "resources": [
+    {
+      "apiVersion": "2018-02-01",
+      "type": "Microsoft.Storage/storageAccounts",
+      "name": "[variables('storageAccountName')]",
+      "location": "[resourceGroup().location]",
+      "kind": "Storage",
+      "sku": {
+        "name": "[variables('storageAccountType')]"
+      }
+    },
+    {
+      "name": "[variables('routeTable1Name')]",
+      "type": "Microsoft.Network/routeTables",
+      "apiVersion": "2018-06-01",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "routes": [
+          {
+            "name": "route-to-trustedSubnet",
+            "properties":{
+              "addressPrefix": "[variables('subnet2Prefix')]",
+              "nextHopIpAddress": "[variables('loadBalancerVIP')]",
+              "nextHopType":"VirtualAppliance"              
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "[variables('routeTable2Name')]",
+      "type": "Microsoft.Network/routeTables",
+      "apiVersion": "2018-06-01",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "routes": [
+          {
+            "name": "route-to-untrustedSubnet",
+            "properties":{
+              "addressPrefix": "[variables('subnet1Prefix')]",
+              "nextHopIpAddress": "[variables('loadBalancerVIP')]",
+              "nextHopType":"VirtualAppliance"              
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "2018-06-01",
+      "type": "Microsoft.Network/virtualNetworks",
+      "name": "[variables('vnetName')]",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[variables('routeTable1Name')]",
+        "[variables('routeTable2Name')]"
+      ],      
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[variables('vnetAddressPrefix')]"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('subnet1Name')]",
+            "properties": {
+              "addressPrefix": "[variables('subnet1Prefix')]",
+              "routeTable":{
+                "id": "[resourceId('Microsoft.Network/routeTables', variables('routeTable1Name'))]"
+              }
+            }            
+          },
+          {
+            "name": "[variables('subnet2Name')]",
+            "properties": {
+              "addressPrefix": "[variables('subnet2Prefix')]",
+              "routeTable":{
+                "id": "[resourceId('Microsoft.Network/routeTables', variables('routeTable2Name'))]"
+              }
+            }
+          },
+          {
+            "name": "[variables('nvasubnetName')]",
+            "properties": {
+              "addressPrefix": "[variables('nvasubnetPrefix')]"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "2018-04-01",
+      "type": "Microsoft.Compute/availabilitySets",
+      "location": "[resourceGroup().location]",
+      "name": "[variables('availabilitySetName')]",
+      "properties": {
+        "PlatformUpdateDomainCount": 2,
+        "PlatformFaultDomainCount": 2
+      },
+      "sku": {
+        "name": "Aligned"
+      }
+    },
+    {
+      "apiVersion": "2018-06-01",
+      "type": "Microsoft.Network/publicIPAddresses",
+      "name": "[concat(variables('publicIPName'), copyIndex())]",
+      "location": "[resourceGroup().location]",
+      "copy": {
+        "name": "pipLoop",
+        "count": "[variables('numberOfInstances')]"
+      },
+      "sku":{
+        "name": "Standard"
+      },
+      "properties": {
+        "publicIPAllocationMethod": "[variables('publicIPAddressType')]"        
+      }
+    },
+    {
+      "apiVersion": "2018-06-01",
+      "type": "Microsoft.Network/networkInterfaces",
+      "name": "[concat(variables('networkInterfaceName'), copyindex())]",
+      "location": "[resourceGroup().location]",
+      "copy": {
+        "name": "nicLoop",
+        "count": "[variables('numberOfInstances')]"
+      },
+      "dependsOn": [
+        "[variables('vnetName')]",
+        "[variables('loadBalancerName')]",
+        "[concat(variables('publicIPName'), copyIndex())]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses',concat(variables('publicIPName'), copyIndex()))]"
+              },
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[variables('nvasubnetRef')]"
+              },
+              "loadBalancerBackendAddressPools": [
+                {
+                  "id": "[concat(variables('lbID'), '/backendAddressPools/nvaBackendPool')]"
+                }
+              ]
+            }
+          }
+        ],
+        "enableIPForwarding": true
+      }
+    },
+    {
+      "apiVersion": "2018-06-01",
+      "type": "Microsoft.Network/loadBalancers",
+      "name": "[variables('loadBalancerName')]",
+      "location": "[resourceGroup().location]",
+      "sku": {
+        "name": "Standard"
+      },
+      "dependsOn": [        
+        "[variables('vnetName')]"
+      ],
+      "properties": {
+        "frontendIPConfigurations": [
+          {
+            "properties": {
+              "subnet":{
+                "id": "[variables('nvasubnetRef')]"
+              },
+              "privateIPAddress": "[variables('loadBalancerVIP')]",
+              "privateIPAllocationMethod": "Static"
+            },
+            "name": "LoadBalancerFrontEnd"
+          }
+        ],
+        "backendAddressPools": [
+          {
+            "name": "nvaBackEndPool"
+          }
+        ],
+        "loadBalancingRules": [
+          {
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('loadBalancerName')), '/frontendIpConfigurations/LoadBalancerFrontend')]"
+              },
+              "backendAddressPool": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('loadBalancerName')), '/backendAddressPools/nvaBackendPool')]"
+              },
+              "probe": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('loadBalancerName')), '/probes/lbprobe')]"
+              },
+              "protocol":"All",
+              "frontendPort": 0,
+              "backendPort": 0              
+            },
+            "Name": "HA-Ports-Rule"
+          }
+        ],
+        "probes": [
+          {
+            "properties": {
+              "protocol": "Tcp",
+              "port": 80,
+              "intervalInSeconds": 15,
+              "numberOfProbes": 2
+            },
+            "name": "lbprobe"
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "2018-04-01",
+      "type": "Microsoft.Compute/virtualMachines",
+      "name": "[concat(variables('nvaVMNamePrefix'), copyindex())]",
+      "copy": {
+        "name": "nvaLoop",
+        "count": "[variables('numberOfInstances')]"
+      },
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[variables('storageAccountName')]",
+        "nicLoop",
+        "[variables('availabilitySetName')]"
+      ],
+      "properties": {
+        "availabilitySet": {
+          "id": "[resourceId('Microsoft.Compute/availabilitySets',variables('availabilitySetName'))]"
+        },
+        "hardwareProfile": {
+          "vmSize": "Standard_DS2_V2"
+        },
+        "osProfile": {
+          "computerName": "[concat(variables('nvaVMNamePrefix'), copyIndex())]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPassword')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "MicrosoftWindowsServer",
+            "offer": "WindowsServer",
+            "sku": "2016-Datacenter",
+            "version": "latest"
+          },
+          "osDisk": {
+            "createOption": "FromImage"
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('networkInterfaceName'), copyindex()))]"
+            }
+          ]
+        },
+        "diagnosticsProfile": {
+          "bootDiagnostics": {
+            "enabled": true,
+            "storageUri": "[reference(variables('storageAccountName')).primaryEndpoints.blob]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2015-06-15",
+      "type": "Microsoft.Compute/virtualMachines/extensions",
+      "name": "[concat(variables('nvaVMNamePrefix'), copyindex(), '/CustomScript')]",
+      "copy": {
+        "name": "virtualMachineExtensionsLoop",
+        "count": "[variables('numberOfInstances')]"
+      },
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[concat('Microsoft.Compute/virtualMachines/', variables('nvaVMNamePrefix'), copyindex())]"
+      ],
+      "properties": {
+        "publisher": "Microsoft.Compute",
+        "type": "CustomScriptExtension",
+        "typeHandlerVersion": "1.9",
+        "autoUpgradeMinorVersion": true,
+        "settings": {
+          "fileUris": [
+            "[variables('scriptFile')]"
+          ]
+        },
+        "protectedSettings": {
+          "commandToExecute": "[concat('powershell -ExecutionPolicy Unrestricted -file ',variables('scriptName'))]"
+        }
+      }
+    },
+    {
+      "apiVersion": "2018-06-01",
+      "type": "Microsoft.Network/networkInterfaces",
+      "name": "[variables('vmNIC1Name')]",
+      "location": "[resourceGroup().location]",      
+      "dependsOn": [
+        "[variables('vnetName')]"        
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {              
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[variables('subnet1Ref')]"
+              }              
+            }
+          }
+        ]        
+      }
+    },
+    {
+      "apiVersion": "2018-06-01",
+      "type": "Microsoft.Network/networkInterfaces",
+      "name": "[variables('vmNIC2Name')]",
+      "location": "[resourceGroup().location]",      
+      "dependsOn": [
+        "[variables('vnetName')]"        
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {              
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[variables('subnet2Ref')]"
+              }              
+            }
+          }
+        ]        
+      }
+    },
+    {
+      "apiVersion": "2018-04-01",
+      "type": "Microsoft.Compute/virtualMachines",
+      "name": "[concat(variables('vmNamePrefix'), copyindex())]",
+      "copy": {
+        "name": "virtualMachineLoop",
+        "count": 2
+      },
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[variables('storageAccountName')]",
+        "[variables('vmNIC1Name')]",
+        "[variables('vmNIC2Name')]"        
+      ],
+      "properties": {        
+        "hardwareProfile": {
+          "vmSize": "Standard_DS2_V2"
+        },
+        "osProfile": {
+          "computerName": "[concat(variables('vmNamePrefix'), copyIndex())]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPassword')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "MicrosoftWindowsServer",
+            "offer": "WindowsServer",
+            "sku": "2016-Datacenter",
+            "version": "latest"
+          },
+          "osDisk": {
+            "createOption": "FromImage"
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('vmNICXName'), copyindex()))]"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "LoadBalancerVIP": {
+      "type": "string",
+      "value": "[variables('loadBalancerVIP')]"
+    }
+  }
+}
