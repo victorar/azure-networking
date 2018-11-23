@@ -1,0 +1,86 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "vNetDefinition": {
+            "value": {
+                "vnetName": "ne-spoke1-vnet",
+                "vnetAddressPrefix": "10.1.16.0/20",
+                "dnsServers": [
+                    "10.1.2.4"
+                ],
+                "subnetlist": [
+                    {
+                        "name": "app1",
+                        "properties": {
+                            "addressPrefix": "10.1.16.0/24",
+                            "networkSecurityGroup": {
+                                "id": "[resourceId('Microsoft.Network/networkSecurityGroups' ,'appx-nsg')]"
+                            }                            
+                        }
+                    },
+                    {
+                        "name": "app2",
+                        "properties": {
+                            "addressPrefix": "10.1.17.0/24",
+                            "networkSecurityGroup": {
+                                "id": "[resourceId('Microsoft.Network/networkSecurityGroups' ,'appx-nsg')]"
+                            }
+                        }
+                    }                   
+                ],
+                "routeTables": [
+                    {
+                        "name": "default-routetable",
+                        "routes": [
+                            {
+                                "name": "internet",
+                                "addressPrefix": "0.0.0.0/0",
+                                "nextHopType": "VirtualAppliance",
+                                "nextHopIpAddress": "10.1.1.4"
+                            }
+                        ]
+                    }
+                ],
+                "networkSecurityGroups": [                    
+                    {
+                        "name": "appx-nsg",
+                        "securityRules": [
+                            {
+                                "name": "rdp_rule1",
+                                "properties": {
+                                    "description": "Allow RDP",
+                                    "protocol": "Tcp",
+                                    "sourcePortRange": "*",
+                                    "destinationPortRange": "3389",
+                                    "sourceAddressPrefix": "Internet",
+                                    "destinationAddressPrefix": "*",
+                                    "access": "Allow",
+                                    "priority": 100,
+                                    "direction": "Inbound",
+                                    "sourceApplicationSecurityGroups": "",
+                                    "destinationApplicationSecurityGroups": ""
+                                }
+                            }
+                        ]
+                    }                   
+                ],
+                "connections": [],
+                "virtualNetworkPeerings": [
+                    {
+                        "properties": {
+                            "remoteVirtualNetwork": {
+                                "id": "/subscriptions/<subscriptionId>/resourceGroups/ne-hub-network/providers/Microsoft.Network/virtualNetworks/ne-hub-vnet"
+                            },
+                            "allowVirtualNetworkAccess": "true",
+                            "allowForwardedTraffic": "true",
+                            "allowGatewayTransit": "false",
+                            "useRemoteGateways": "true"
+                        }
+                    }
+                ],
+                "azureFirewalls": []
+            }
+        }
+    }
+}

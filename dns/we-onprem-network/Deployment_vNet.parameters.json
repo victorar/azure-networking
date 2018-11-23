@@ -1,0 +1,114 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "vNetDefinition": {
+            "value": {
+                "vnetName": "we-onprem-vnet",
+                "vnetAddressPrefix": "172.16.0.0/16",
+                "dnsServers": [
+                    "172.16.1.4"
+                ],
+                "subnetlist": [
+                    {
+                        "name": "GatewaySubnet",
+                        "properties": {
+                            "addressPrefix": "172.16.0.0/24"
+                        }
+                    },
+                    {
+                        "name": "ADDSSubnet",
+                        "properties": {
+                            "addressPrefix": "172.16.1.0/24"
+                        }
+                    },
+                    {
+                        "name": "appSubnet",
+                        "properties": {
+                            "addressPrefix": "172.16.2.0/24"
+                        }
+                    },
+                    {
+                        "name": "jumpboxSubnet",
+                        "properties": {
+                            "addressPrefix": "172.16.3.0/24",
+                            "networkSecurityGroup": {
+                                "id": "[resourceId('Microsoft.Network/networkSecurityGroups' ,'jumpbox-nsg')]"
+                            }
+                        }
+                    }
+                ],
+                "routeTables": [
+                    {
+                        "name": "internet-routetable",
+                        "routes": [
+                            {
+                                "name": "internet",
+                                "addressPrefix": "0.0.0.0/0",
+                                "nextHopType": "Internet"
+                            }
+                        ]
+                    }
+                ],
+                "networkSecurityGroups": [
+                    {
+                        "name": "jumpbox-nsg",
+                        "securityRules": [
+                            {
+                                "name": "rdp_rule1",
+                                "properties": {
+                                    "description": "Allow RDP",
+                                    "protocol": "Tcp",
+                                    "sourcePortRange": "*",
+                                    "destinationPortRange": "3389",
+                                    "sourceAddressPrefix": "Internet",
+                                    "destinationAddressPrefix": "*",
+                                    "access": "Allow",
+                                    "priority": 100,
+                                    "direction": "Inbound",
+                                    "sourceApplicationSecurityGroups": "",
+                                    "destinationApplicationSecurityGroups": ""
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "virtualNetworkPeerings": [],
+                "virtualNetworkGateways": [
+                    {
+                        "name": "we-onprem-vpngw",
+                        "gatewayPublicIPAddressName": "we-onprem-vpngw-pip",
+                        "properties": {
+                            "ipConfigurations": [
+                                {
+                                    "name": "vpngwIpConf",
+                                    "properties": {
+                                        "subnet": {
+                                            "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vNetDefinition').vnetName, 'gatewaySubnet')]"
+                                        },
+                                        "publicIPAddress": {
+                                            "id": "[resourceId('Microsoft.Network/publicIPAddresses','we-onprem-vpngw-pip')]"
+                                        }
+                                    }
+                                }
+                            ],
+                            "gatewayType": "Vpn",
+                            "vpnType": "RouteBased",
+                            "enableBgp": true,
+                            "activeActive": false,
+                            "sku": {
+                                "name": "VpnGw1",
+                                "tier": "VpnGw1"
+                            },
+                            "bgpSettings": {
+                                "asn": 65510
+                            }
+                        }
+                    }
+                ],
+                "connections": [],
+                "azureFirewalls": []
+            }
+        }
+    }
+}

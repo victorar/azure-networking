@@ -1,0 +1,48 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "dnsZones": {
+            "value": {
+                "name": "cloud.contoso.int",
+                "properties": {
+                    "registrationVirtualNetworks": [
+                        {
+                            "id": "/subscriptions/<subscriptionId>/resourceGroups/ne-hub-network/providers/Microsoft.Network/virtualNetworks/ne-hub-vnet"
+                        }
+                    ],
+                    "resolutionVirtualNetworks": [
+                        {
+                            "id": "/subscriptions/<subscriptionId>/resourceGroups/ne-spoke1-network/providers/Microsoft.Network/virtualNetworks/ne-spoke1-vnet"
+                        }
+                    ],
+                    "zoneType": "Private"
+                },
+                "aRecords": [
+                    {
+                        "name": "nespk1vm1",
+                        "properties": {
+                            "TTL": 3600,
+                            "ARecords": [
+                                {
+                                    "ipv4Address": "10.1.16.4"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "name": "nespk1vm2",
+                        "properties": {
+                            "TTL": 3600,
+                            "ARecords": [
+                                {
+                                    "ipv4Address": "10.1.17.4"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}

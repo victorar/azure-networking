@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "adminUsername": {
+      "value": "adminUser"
+    },   
+    "vmName": {
+      "value": "nespk1vm1"
+    },
+    "subnetRef": {
+      "value": "/subscriptions/<subscriptionId>/resourceGroups/ne-spoke1-network/providers/Microsoft.Network/virtualNetworks/ne-spoke1-vnet/subnets/app1"
+    }
+  }
+}
